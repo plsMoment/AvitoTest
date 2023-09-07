@@ -11,9 +11,7 @@ type Request struct {
 	Slug string `json:"slug" validate:"required"`
 }
 
-type Response struct {
-	Status int `json:"status"`
-}
+type Response struct{}
 
 type SegmentChanger interface {
 	CreateSegment(slug string) error
@@ -30,20 +28,23 @@ func Create(log *slog.Logger, changer SegmentChanger) http.HandlerFunc {
 		err := render.DecodeJSON(r.Body, &req)
 		if err != nil {
 			log.Error("failed decoding request", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, Response{})
 			return
 		}
 
 		log.Info("request body decoded", slog.Any("request", req))
 		err = changer.CreateSegment(req.Slug)
 		if err != nil {
-			log.Error("creating segment failed:", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			log.Error("creating segment failed", err)
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, Response{})
 			return
 		}
 
-		log.Info("segment created, slug: ", req.Slug)
-		render.JSON(w, r, Response{Status: http.StatusOK})
+		log.Info("segment created", slog.Any("slug", req.Slug))
+		render.Status(r, http.StatusCreated)
+		render.JSON(w, r, Response{})
 	}
 }
 
@@ -57,7 +58,8 @@ func Delete(log *slog.Logger, changer SegmentChanger) http.HandlerFunc {
 		err := render.DecodeJSON(r.Body, &req)
 		if err != nil {
 			log.Error("failed decoding request", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, Response{})
 			return
 		}
 
@@ -65,11 +67,12 @@ func Delete(log *slog.Logger, changer SegmentChanger) http.HandlerFunc {
 		err = changer.DeleteSegment(req.Slug)
 		if err != nil {
 			log.Error("deleting segment failed: ", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, Response{})
 			return
 		}
 
-		log.Info("segment deleted, slug: ", req.Slug)
-		render.JSON(w, r, Response{Status: http.StatusOK})
+		log.Info("segment deleted", slog.Any("slug", req.Slug))
+		render.JSON(w, r, Response{})
 	}
 }

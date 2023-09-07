@@ -1,6 +1,7 @@
 package models
 
 import (
+	"AvitoTest/internal/config"
 	"context"
 	"errors"
 	"fmt"
@@ -21,9 +22,12 @@ type Segment struct {
 	Slug string
 }
 
-func New() (*Storage, error) {
+func New(cfg *config.DB) (*Storage, error) {
 	scope := "database.models.New"
-	connStr := os.Getenv("DB_CONN_STR")
+	connStr := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s",
+		cfg.Username, os.Getenv("DB_PASSWORD"), cfg.Host, cfg.Port, cfg.Name,
+	)
 
 	db, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
@@ -123,7 +127,7 @@ func (s *Storage) GetUserSegments(userId uuid.UUID) ([]string, error) {
 func (s *Storage) AddUserSegments(userId uuid.UUID, addSlugs []string) error {
 	scope := "database.models.AddUserSegments"
 
-	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug IN ($1)", addSlugs)
+	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", addSlugs)
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
@@ -159,7 +163,7 @@ func (s *Storage) AddUserSegments(userId uuid.UUID, addSlugs []string) error {
 func (s *Storage) DeleteUserSegments(userId uuid.UUID, deleteSlugs []string) error {
 	scope := "database.models.DeleteUserSegments"
 
-	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug in $1", deleteSlugs)
+	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", deleteSlugs)
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
@@ -175,7 +179,9 @@ func (s *Storage) DeleteUserSegments(userId uuid.UUID, deleteSlugs []string) err
 		ids = append(ids, segment.Id)
 	}
 
-	_, err = s.db.Exec(context.Background(), "DELETE FROM user_segments WHERE segment_id in $1", ids)
+	_, err = s.db.Exec(context.Background(),
+		"DELETE FROM user_segments WHERE user_id = $1 AND segment_id = ANY ($2)", userId, ids,
+	)
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}

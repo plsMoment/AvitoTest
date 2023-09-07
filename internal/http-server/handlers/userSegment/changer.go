@@ -28,18 +28,20 @@ func Update(log *slog.Logger, changer UserSegmentChanger) http.HandlerFunc {
 		err := render.DecodeJSON(r.Body, &req)
 		if err != nil {
 			log.Error("failed decoding request", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, Response{})
 			return
 		}
 
 		log.Info("request body decoded", slog.Any("request", req))
 		err = changer.ChangeUserSegments(req.UserId, req.AddSlugs, req.DeleteSlugs)
 		if err != nil {
-			log.Error("creating segment failed: ", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			log.Error("changing user's segments failed", err)
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, Response{})
 			return
 		}
 
-		render.JSON(w, r, Response{Status: http.StatusOK})
+		render.JSON(w, r, Response{})
 	}
 }

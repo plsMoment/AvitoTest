@@ -19,9 +19,9 @@ import (
 func main() {
 	cfg := config.MustLoad()
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	log.Info("Startup AvitoTest", slog.String("env", cfg.Env))
+	log.Info("startup AvitoTest", slog.String("env", cfg.Env))
 
-	db, err := models.New()
+	db, err := models.New(&cfg.DB)
 	if err != nil {
 		log.Error("connect to database failed: ", err)
 		os.Exit(1)
@@ -36,8 +36,8 @@ func main() {
 
 	router.Post("/segment", segment.Create(log, db))
 	router.Delete("/segment", segment.Delete(log, db))
-	router.Get("/segment/{userId}", userSegment.Get(log, db))
-	router.Put("/segment/users", userSegment.Update(log, db))
+	router.Get("/segments/{userId}", userSegment.Get(log, db))
+	router.Put("/segments/user", userSegment.Update(log, db))
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 
@@ -53,9 +53,7 @@ func main() {
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Error("failed to start server", err)
-		}
+		srv.ListenAndServe()
 	}()
 
 	log.Info("server started")

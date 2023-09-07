@@ -10,8 +10,7 @@ import (
 )
 
 type Response struct {
-	Status int      `json:"status"`
-	Slugs  []string `json:"slugs,omitempty"`
+	Slugs []string `json:"slugs,omitempty"`
 }
 
 type UserSegmentsGetter interface {
@@ -26,18 +25,20 @@ func Get(log *slog.Logger, getter UserSegmentsGetter) http.HandlerFunc {
 
 		userId, err := uuid.Parse(chi.URLParam(r, "userId"))
 		if err != nil {
-			log.Error("parsing URL parameter failed: ", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			log.Error("parsing URL parameter failed", err)
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, Response{})
 			return
 		}
 
 		slugs, err := getter.GetUserSegments(userId)
 		if err != nil {
-			log.Error("getting user's segment failed: ", err)
-			render.JSON(w, r, Response{Status: http.StatusInternalServerError})
+			log.Error("getting user's segment failed", err)
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, Response{})
 			return
 		}
 
-		render.JSON(w, r, Response{Status: http.StatusOK, Slugs: slugs})
+		render.JSON(w, r, Response{Slugs: slugs})
 	}
 }

@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  avito-test:
+    build: ./
+    command: ./avito-test
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - CONFIG_PATH=./config/local.yaml
+      - DB_PASSWORD=password
+
+  db:
+    image: postgres:14-alpine
+    volumes:
+      - ./.database/postgres/data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=AvitoTest
+      - POSTGRES_PASSWORD=password
