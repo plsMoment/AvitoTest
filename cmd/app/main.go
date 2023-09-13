@@ -6,6 +6,7 @@ import (
 	"AvitoTest/internal/http-server/handlers/segment"
 	"AvitoTest/internal/http-server/handlers/userSegment"
 	"context"
+	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/exp/slog"
@@ -26,6 +27,7 @@ func main() {
 		log.Error("connect to database failed: ", err)
 		os.Exit(1)
 	}
+	defer db.Close()
 
 	router := chi.NewRouter()
 
@@ -35,11 +37,13 @@ func main() {
 	router.Use(middleware.URLFormat)
 
 	router.Post("/segment", segment.Create(log, db))
-	router.Delete("/segment", segment.Delete(log, db))
-	router.Get("/segments/{userId}", userSegment.Get(log, db))
-	router.Put("/segments/user", userSegment.Update(log, db))
+	router.Delete("/segment/{slug}", segment.Delete(log, db))
+	router.Get("/segments/user/{userId}", userSegment.Get(log, db))
+	router.Put("/segments/user/{userId}", userSegment.Update(log, db))
 
-	log.Info("starting server", slog.String("address", cfg.Address))
+	if cfg.Env == "local" {
+		log.Info("starting server", slog.String("address", "localhost:8080"))
+	}
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -53,7 +57,13 @@ func main() {
 	}
 
 	go func() {
-		srv.ListenAndServe()
+		if err := srv.ListenAndServe(); err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				log.Info("server closed")
+			} else {
+				log.Error("error during server shutdown", err)
+			}
+		}
 	}()
 
 	log.Info("server started")
@@ -69,5 +79,4 @@ func main() {
 		return
 	}
 
-	log.Info("server stopped")
 }

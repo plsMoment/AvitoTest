@@ -5,15 +5,21 @@ services:
     build: ./
     command: ./avito-test
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - CONFIG_PATH=./config/local.yaml
       - DB_PASSWORD=password
 
   db:
     image: postgres:14-alpine
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./.database/postgres/data:/var/lib/postgresql/data
     environment:

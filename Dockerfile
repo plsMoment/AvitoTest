@@ -9,5 +9,3 @@ RUN go mod download
 # build
 COPY ./ ./
 RUN go build -o avito-test ./cmd/app/main.go
-
-CMD ["./avito-test"]

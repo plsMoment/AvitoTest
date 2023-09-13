@@ -42,7 +42,7 @@ func New(cfg *config.DB) (*Storage, error) {
 	CREATE TABLE IF NOT EXISTS "user_segments" (
 		"user_id" uuid NOT NULL,
 		"segment_id" uuid NOT NULL,
-		FOREIGN KEY ("segment_id") REFERENCES "segments" ("id"),
+		FOREIGN KEY ("segment_id") REFERENCES "segments" ("id") ON DELETE CASCADE,
 		PRIMARY KEY ("user_id", "segment_id"));
 	`)
 	if err != nil {
@@ -50,6 +50,10 @@ func New(cfg *config.DB) (*Storage, error) {
 	}
 
 	return &Storage{db: db}, nil
+}
+
+func (s *Storage) Close() {
+	s.db.Close()
 }
 
 func (s *Storage) CreateSegment(slug string) error {

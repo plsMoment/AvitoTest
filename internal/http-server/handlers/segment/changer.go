@@ -1,6 +1,7 @@
 package segment
 
 import (
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"golang.org/x/exp/slog"
@@ -27,7 +28,7 @@ func Create(log *slog.Logger, changer SegmentChanger) http.HandlerFunc {
 		var req Request
 		err := render.DecodeJSON(r.Body, &req)
 		if err != nil {
-			log.Error("failed decoding request", err)
+			log.Error("decoding request failed", err)
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, Response{})
 			return
@@ -54,25 +55,17 @@ func Delete(log *slog.Logger, changer SegmentChanger) http.HandlerFunc {
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
-		err := render.DecodeJSON(r.Body, &req)
-		if err != nil {
-			log.Error("failed decoding request", err)
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, Response{})
-			return
-		}
+		slug := chi.URLParam(r, "slug")
 
-		log.Info("request body decoded", slog.Any("request", req))
-		err = changer.DeleteSegment(req.Slug)
+		err := changer.DeleteSegment(slug)
 		if err != nil {
-			log.Error("deleting segment failed: ", err)
+			log.Error("deleting segment failed", err)
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, Response{})
 			return
 		}
 
-		log.Info("segment deleted", slog.Any("slug", req.Slug))
+		log.Info("segment deleted", slog.Any("slug", slug))
 		render.JSON(w, r, Response{})
 	}
 }
