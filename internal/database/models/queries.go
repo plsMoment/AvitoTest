@@ -84,25 +84,6 @@ func (s *Storage) DeleteSegment(slug string) error {
 	return nil
 }
 
-func (s *Storage) ChangeUserSegments(userId uuid.UUID, addSlugs []string, deleteSlugs []string) error {
-
-	if len(addSlugs) != 0 {
-		err := s.AddUserSegments(userId, addSlugs)
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(deleteSlugs) != 0 {
-		err := s.DeleteUserSegments(userId, deleteSlugs)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (s *Storage) GetUserSegments(userId uuid.UUID) ([]string, error) {
 	scope := "database.models.GetUserSegments"
 
@@ -128,10 +109,42 @@ func (s *Storage) GetUserSegments(userId uuid.UUID) ([]string, error) {
 	return res, nil
 }
 
-func (s *Storage) AddUserSegments(userId uuid.UUID, addSlugs []string) error {
+func (s *Storage) ChangeUserSegments(userId uuid.UUID, addSlugs []string, deleteSlugs []string) error {
+	scope := "database.models.ChangeUserSegments"
+	ctx := context.Background()
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", scope, err)
+	}
+	defer tx.Rollback(ctx)
+
+	if len(addSlugs) != 0 {
+		err = AddUserSegments(tx, userId, addSlugs)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(deleteSlugs) != 0 {
+		err = DeleteUserSegments(tx, userId, deleteSlugs)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", scope, err)
+	}
+
+	return nil
+}
+
+func AddUserSegments(tx pgx.Tx, userId uuid.UUID, addSlugs []string) error {
 	scope := "database.models.AddUserSegments"
 
-	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", addSlugs)
+	rows, err := tx.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", addSlugs)
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
@@ -140,13 +153,19 @@ func (s *Storage) AddUserSegments(userId uuid.UUID, addSlugs []string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
+	if len(addSlugs) != len(segments) {
+		return fmt.Errorf(
+			"%s: some segments was not found, number: %d",
+			scope, len(addSlugs)-len(segments),
+		)
+	}
 
 	batch := &pgx.Batch{}
 	query := "INSERT INTO user_segments (user_id, segment_id) VALUES ($1, $2)"
 	for _, segment := range segments {
 		batch.Queue(query, userId, segment.Id)
 	}
-	res := s.db.SendBatch(context.Background(), batch)
+	res := tx.SendBatch(context.Background(), batch)
 	defer res.Close()
 
 	var errs error
@@ -164,10 +183,10 @@ func (s *Storage) AddUserSegments(userId uuid.UUID, addSlugs []string) error {
 	return errs
 }
 
-func (s *Storage) DeleteUserSegments(userId uuid.UUID, deleteSlugs []string) error {
+func DeleteUserSegments(tx pgx.Tx, userId uuid.UUID, deleteSlugs []string) error {
 	scope := "database.models.DeleteUserSegments"
 
-	rows, err := s.db.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", deleteSlugs)
+	rows, err := tx.Query(context.Background(), "SELECT * FROM segments WHERE slug = ANY ($1)", deleteSlugs)
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
@@ -177,13 +196,19 @@ func (s *Storage) DeleteUserSegments(userId uuid.UUID, deleteSlugs []string) err
 	if err != nil {
 		return fmt.Errorf("%s: %w", scope, err)
 	}
+	if len(deleteSlugs) != len(segments) {
+		return fmt.Errorf(
+			"%s: some segments was not found, number: %d",
+			scope, len(deleteSlugs)-len(segments),
+		)
+	}
 
 	var ids []string
 	for _, segment := range segments {
 		ids = append(ids, segment.Id)
 	}
 
-	_, err = s.db.Exec(context.Background(),
+	_, err = tx.Exec(context.Background(),
 		"DELETE FROM user_segments WHERE user_id = $1 AND segment_id = ANY ($2)", userId, ids,
 	)
 	if err != nil {
